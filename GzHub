@@ -1,0 +1,91 @@
+-- ================= SERVICES =================
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local Player = Players.LocalPlayer
+local PlaceId = game.PlaceId
+local JobId = game.JobId
+
+-- ================= EXECUTOR =================
+local request = syn and syn.request or http_request or request
+local queue = syn and syn.queue_on_teleport or queue_on_teleport
+
+-- ================= CONFIG =================
+local FULL_TIME = 1200 -- ✅ 20 นาที (พร้อมใช้งาน)
+-- ==========================================
+
+-- ================= STATE =================
+getgenv().AUTO_HOP = getgenv().AUTO_HOP or false
+getgenv().REMAIN_TIME = getgenv().REMAIN_TIME or FULL_TIME
+-- ==========================================
+
+-- ================= UI =================
+local gui = Instance.new("ScreenGui")
+gui.ResetOnSpawn = false
+gui.Parent = game.CoreGui
+
+local btn = Instance.new("TextButton")
+btn.Parent = gui
+btn.Size = UDim2.new(0,240,0,40)
+btn.Position = UDim2.new(0.1,0,0.1,0)
+btn.Font = Enum.Font.Gotham
+btn.TextSize = 16
+btn.TextColor3 = Color3.new(1,1,1)
+
+local function refreshUI()
+    if getgenv().AUTO_HOP then
+        btn.Text = "AUTO HOP : ON ("..getgenv().REMAIN_TIME.."s)"
+        btn.BackgroundColor3 = Color3.fromRGB(220,60,60)
+    else
+        btn.Text = "AUTO HOP : OFF"
+        btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    end
+end
+refreshUI()
+
+btn.MouseButton1Click:Connect(function()
+    getgenv().AUTO_HOP = not getgenv().AUTO_HOP
+    refreshUI()
+end)
+
+-- ================= SERVER HOP =================
+local function ServerHop()
+    local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
+    local res = request({Url = url, Method = "GET"})
+    local data = HttpService:JSONDecode(res.Body)
+
+    for _,v in pairs(data.data) do
+        if v.id ~= JobId and v.playing < v.maxPlayers then
+
+            -- 🔑 ส่งสถานะ + เวลาที่เหลือไปเซิร์ฟใหม่
+            if queue then
+                queue(string.format([[
+                    getgenv().AUTO_HOP = true
+                    getgenv().REMAIN_TIME = %d
+                    loadstring(game:HttpGet("RAW_SCRIPT_URL_HERE"))()
+                ]], getgenv().REMAIN_TIME))
+            end
+
+            TeleportService:TeleportToPlaceInstance(PlaceId, v.id, Player)
+            break
+        end
+    end
+end
+
+-- ================= TIMER =================
+task.spawn(function()
+    while true do
+        task.wait(1)
+
+        if getgenv().AUTO_HOP then
+            getgenv().REMAIN_TIME -= 1
+            refreshUI()
+
+            if getgenv().REMAIN_TIME <= 0 then
+                getgenv().REMAIN_TIME = FULL_TIME
+                pcall(ServerHop)
+            end
+        end
+    end
+end)
