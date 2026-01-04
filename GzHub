@@ -1,0 +1,102 @@
+local library = {}
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local Player = Players.LocalPlayer
+local PlaceId = game.PlaceId
+local CurrentJobId = game.JobId
+
+-- ====== CONFIG ======
+getgenv().AutoServerHop = false
+local HopDelay = 10
+local request = syn and syn.request or http_request or request
+-- ====================
+
+function library:Create(class, props)
+    local obj = Instance.new(class)
+    for i,v in pairs(props or {}) do
+        obj[i] = v
+    end
+    return obj
+end
+
+-- ====== UI ======
+local ScreenGui = library:Create("ScreenGui", {
+    Parent = game.CoreGui
+})
+
+local Main = library:Create("Frame", {
+    Size = UDim2.new(0, 230, 0, 80),
+    Position = UDim2.new(0.1, 0, 0.1, 0),
+    BackgroundColor3 = Color3.fromRGB(20,20,20),
+    Parent = ScreenGui
+})
+
+local Title = library:Create("TextLabel", {
+    Size = UDim2.new(1,0,0,40),
+    BackgroundTransparency = 1,
+    Text = "ย้ายเชิฟออโต้",
+    TextColor3 = Color3.new(1,1,1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 18,
+    Parent = Main
+})
+
+local Content = library:Create("Frame", {
+    Position = UDim2.new(0,0,0,40),
+    Size = UDim2.new(1,0,1,-40),
+    BackgroundTransparency = 1,
+    Parent = Main
+})
+
+-- ====== BUTTON ======
+local ToggleButton = library:Create("TextButton", {
+    Size = UDim2.new(1, -20, 0, 30),
+    Position = UDim2.new(0, 10, 0, 5),
+    BackgroundColor3 = Color3.fromRGB(40,40,40),
+    Text = "OFF",
+    TextColor3 = Color3.new(1,1,1),
+    Font = Enum.Font.Gotham,
+    TextSize = 16,
+    Parent = Content
+})
+
+-- ====== SERVER HOP FUNCTION ======
+local function ServerHop()
+    local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+    local response = request({Url = url, Method = "GET"})
+    local data = HttpService:JSONDecode(response.Body)
+
+    for _,server in pairs(data.data) do
+        if server.playing < server.maxPlayers and server.id ~= CurrentJobId then
+            TeleportService:TeleportToPlaceInstance(PlaceId, server.id, Player)
+            return
+        end
+    end
+end
+
+-- ====== AUTO LOOP ======
+task.spawn(function()
+    while task.wait(HopDelay) do
+        if getgenv().AutoServerHop then
+            pcall(ServerHop)
+        end
+    end
+end)
+
+-- ====== BUTTON LOGIC ======
+ToggleButton.MouseButton1Click:Connect(function()
+    getgenv().AutoServerHop = not getgenv().AutoServerHop
+
+    if getgenv().AutoServerHop then
+        ToggleButton.Text = "ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(255,65,65)
+    else
+        ToggleButton.Text = "OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    end
+end)
